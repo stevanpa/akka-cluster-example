@@ -1,27 +1,35 @@
 package org.akka.test;
 
-import akka.actor.ActorRef;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
+
 import akka.actor.ActorSystem;
 import akka.actor.Props;
-import akka.cluster.Cluster;
-import akka.cluster.ClusterEvent.ClusterDomainEvent;
 
 public class SimpleClusterApp {
 
 	public static void main(String[] args) {
+		if (args.length == 0)
+			startup(new String[] { "2551", "2552", "0" });
+		else
+			startup(args);
+	}
 		
-		// Override the configuration of the port
-	    // when specified as program argument
-		if (args.length > 0)
-			System.setProperty("akka.remote.netty.port", args[0]);
-		
-		// Create an Akka system
-		ActorSystem system = ActorSystem.create("ClusterSystem");
-		
-		// Create an actor that handles cluster domain events
-		ActorRef clusterListener = system.actorOf(new Props(null, SimpleClusterListener.class, null), "clusterListener");
-		
-		// Add subscription of cluster events
-	    Cluster.get(system).subscribe(clusterListener, ClusterDomainEvent.class);
+	public static void startup(String[] ports) {
+		for (String port : ports) {
+			// Override the configuration of the port
+			Config config = ConfigFactory.parseString(
+					"akka.remote.netty.tcp.port=" + port + "\n" +
+					"akka.remote.artery.canonical.port=" + port)
+					.withFallback(ConfigFactory.load());
+
+			// Create an Akka system
+			ActorSystem system = ActorSystem.create("ClusterSystem", config);
+
+			// Create an actor that handles cluster domain events
+			system.actorOf(Props.create(SimpleClusterListener.class),
+					"clusterListener");
+
+		}
 	}
 }
